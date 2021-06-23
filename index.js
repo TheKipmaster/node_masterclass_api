@@ -34,11 +34,37 @@ const server = http.createServer(function(req, res) {
   req.on('end', function() {
     buffer += decoder.end();
 
-    // Send the response
-    res.end('Hello World\n');
+    // Choose a handler this request should go to. If none is found, use the notFound handler
+    var chosenHandler = typeof(router[trimmedPath]) !== 'undefined' ? router[trimmedPath] : handlers.notFound;
 
-    // Log the request path
-    console.log('Request received with this payload: ', buffer);
+    // Construct the data object to send to the handler
+    const data = {
+      'trimmedPath': trimmedPath,
+      'queryStringObject': queryStringObject,
+      'method': method,
+      'headers': headers,
+      'payload': buffer
+    };
+
+    // Route the request to the handler specified in the router
+    chosenHandler(data, function(statusCode, payload) {
+      // Use the status code called back by the handler, or default to 200
+      statusCode = typeof(statusCode) == 'number' ? statusCode : 200;
+
+      // Use the payload called back by the handler, or default to {}
+      payload = typeof(payload) == 'object' ? payload : {};
+
+      // Convert payload object to string
+      const payloadString = JSON.stringify(payload);
+
+      // Return the response
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(statusCode);
+      res.end(payloadString);
+
+      // Log the request path
+      console.log('Returning this response: ', statusCode, payloadString);
+    });
   });
 
 
@@ -48,3 +74,22 @@ const server = http.createServer(function(req, res) {
 server.listen(3000, function() {
   console.log('The server is listening on port 3000');
 });
+
+// Define handlers
+const handlers = {};
+
+// Sample handlers
+handlers.sample = function(data, callback) {
+  // Callback an HTTP status code and a payload object
+  callback(406, {'name': 'sample handler'});
+};
+
+// Not found handler
+handlers.notFound = function(data, callback) {
+  callback(404);
+};
+
+// Define request router
+const router = {
+  'sample': handlers.sample,
+}
